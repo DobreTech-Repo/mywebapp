@@ -60,5 +60,17 @@
                 <version>3.9.1.2184</version>
             </plugin>
         </plugins>
-    </build>
+</build>
+
+<distributionManagement>
+        <repository>
+            <id>nexus-releases</id>
+            <url>http://your-nexus-server/repository/releases/</url>
+        </repository>
+        <snapshotRepository>
+            <id>nexus-snapshots</id>
+            <url>http://your-nexus-server/repository/snapshots/</url>
+        </snapshotRepository>
+    </distributionManagement>
+
 </project>
