@@ -15,7 +15,11 @@
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <maven.compiler.source>11</maven.compiler.source>
-        <maven.compiler.target>11</maven.compiler.target>
+	<maven.compiler.target>11</maven.compiler.target>
+	<sonar.login>admin</sonar.login>
+        <sonar.password>Dobre12345</sonar.password>
+        <sonar.host.url>http://your-sonarqube-server</sonar.host.url>
+</properties>
     </properties>
 
     <dependencies>
