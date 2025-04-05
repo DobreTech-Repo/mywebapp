@@ -63,11 +63,11 @@
 
 <distributionManagement>
         <repository>
-            <id>nexus-releases</id>
+            <id>nexus</id>
             <url>http://98.84.180.237:8081/repository/dobretech-fe/</url>
         </repository>
         <snapshotRepository>
-            <id>nexus-snapshots</id>
+            <id>nexus</id>
             <url>http://98.84.180.237:8081/repository/dobretech-fe-snap/</url>
         </snapshotRepository>
     </distributionManagement>
