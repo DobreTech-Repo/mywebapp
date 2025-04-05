@@ -20,7 +20,6 @@
         <sonar.password>Dobre12345</sonar.password>
         <sonar.host.url>http://your-sonarqube-server</sonar.host.url>
 </properties>
-    </properties>
 
     <dependencies>
         <dependency>
