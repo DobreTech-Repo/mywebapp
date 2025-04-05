@@ -64,11 +64,11 @@
 <distributionManagement>
         <repository>
             <id>nexus-releases</id>
-            <url>http://your-nexus-server/repository/releases/</url>
+            <url>http://98.84.180.237:8081/repository/dobretech-fe/</url>
         </repository>
         <snapshotRepository>
             <id>nexus-snapshots</id>
-            <url>http://your-nexus-server/repository/snapshots/</url>
+            <url>http://98.84.180.237:8081/repository/dobretech-fe-snap/</url>
         </snapshotRepository>
     </distributionManagement>
 
