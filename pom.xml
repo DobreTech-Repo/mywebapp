@@ -18,7 +18,7 @@
 	<maven.compiler.target>11</maven.compiler.target>
 	<sonar.login>admin</sonar.login>
         <sonar.password>Dobre12345</sonar.password>
-        <sonar.host.url>http://3.85.57.92:9000/</sonar.host.url>
+        <sonar.host.url>http://3.93.52.56:9000/</sonar.host.url>
 </properties>
 
     <dependencies>
