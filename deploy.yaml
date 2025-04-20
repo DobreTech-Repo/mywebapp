@@ -9,7 +9,7 @@
     tomcat_group: "tomcat"
     tomcat_install_dir: "/opt/tomcat"
     tomcat_url: "https://archive.apache.org/dist/tomcat/tomcat-{{ tomcat_major }}/v{{ tomcat_version }}/bin/apache-tomcat-{{ tomcat_version }}.tar.gz"
-    nexus_war_url: "http://54.209.84.83:8081/repository/dobretech-fe/com/example/myapp/1.0/myapp-1.0.war"
+    nexus_war_url: "http://18.234.234.170:8081/repository/dobretech-fe/com/example/myapp/1.0/myapp-1.0.war"
     war_file_name: "myapp-1.0.war"
 
   tasks:
