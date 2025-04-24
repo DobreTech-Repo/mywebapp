@@ -18,7 +18,7 @@
 	<maven.compiler.target>11</maven.compiler.target>
 	<sonar.login>admin</sonar.login>
         <sonar.password>Dobre12345</sonar.password>
-        <sonar.host.url>http://18.212.229.76:9000/</sonar.host.url>
+        <sonar.host.url>http://3.89.104.240:9000/</sonar.host.url>
 </properties>
 
     <dependencies>
@@ -64,11 +64,11 @@
 <distributionManagement>
         <repository>
             <id>nexus</id>
-            <url>http://18.234.234.170:8081/repository/dobretech-fe/</url>
+            <url>http://18.207.122.15:8081/repository/dobretech-fe/</url>
         </repository>
         <snapshotRepository>
             <id>nexus</id>
-            <url>http://18.234.234.170:8081/repository/dobretech-fe-snap/</url>
+            <url>http://18.207.122.15:8081/repository/dobretech-fe-snap/</url>
         </snapshotRepository>
     </distributionManagement>
 
