@@ -6,7 +6,7 @@
 
     <groupId>com.example</groupId>
     <artifactId>myapp</artifactId>
-    <version>1.0-SNAPSHOT</version> <!-- Snapshot version for dev branch -->
+    <version>1.0-SNAPSHOT</version> <!-- Use SNAPSHOT version for snapshot repository -->
     <packaging>war</packaging>
 
     <name>DevOps Pipeline Demo DobreTech</name>
@@ -18,7 +18,7 @@
         <maven.compiler.target>11</maven.compiler.target>
         <sonar.token>${SONARQUBE_TOKEN}</sonar.token>
         <sonar.host.url>http://51.20.114.60:9000/</sonar.host.url>
-        <maven.branch>${env.BRANCH_NAME}</maven.branch> <!-- This retrieves the Git branch name -->
+        <maven.branch>${env.BRANCH_NAME}</maven.branch>
     </properties>
 
     <build>
@@ -47,19 +47,14 @@
     </build>
 
     <profiles>
-        <!-- Profile for dev branch -->
         <profile>
             <id>dev</id>
             <activation>
-                <activeByDefault>false</activeByDefault>
                 <property>
                     <name>maven.branch</name>
                     <value>Dev</value>
                 </property>
             </activation>
-            <properties>
-                <build.version>1.0-SNAPSHOT</build.version> <!-- Snapshot version for dev branch -->
-            </properties>
             <distributionManagement>
                 <snapshotRepository>
                     <id>nexus</id>
