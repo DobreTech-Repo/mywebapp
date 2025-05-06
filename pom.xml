@@ -46,27 +46,6 @@
         </plugins>
     </build>
 
-    <profiles>
-        <!-- Profile for main branch -->
-        <profile>
-            <id>main</id>
-            <activation>
-                <activeByDefault>false</activeByDefault>
-                <property>
-                    <name>maven.branch</name>
-                    <value>main</value>
-                </property>
-            </activation>
-            <properties>
-                <build.version>1.0</build.version> <!-- Stable release version for main branch -->
-            </properties>
-            <distributionManagement>
-                <repository>
-                    <id>nexus</id>
-                    <url>http://13.51.237.106:8081/repository/dobretech-repo/</url>
-                </repository>
-            </distributionManagement>
-        </profile>
 
         <!-- Profile for dev branch -->
         <profile>
