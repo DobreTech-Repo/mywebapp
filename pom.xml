@@ -6,7 +6,7 @@
 
     <groupId>com.example</groupId>
     <artifactId>myapp</artifactId>
-    <version>${project.version}</version> <!-- Dynamic version -->
+    <version>${build.version}</version> <!-- Use custom property for version -->
     <packaging>war</packaging>
 
     <name>DevOps Pipeline Demo DobreTech</name>
@@ -18,7 +18,7 @@
         <maven.compiler.target>11</maven.compiler.target>
         <sonar.token>${SONARQUBE_TOKEN}</sonar.token>
         <sonar.host.url>http://51.20.114.60:9000/</sonar.host.url>
-        <project.version>1.0</project.version> <!-- Default version -->
+        <build.version>1.0</build.version> <!-- Default version if not overridden -->
     </properties>
 
     <dependencies>
