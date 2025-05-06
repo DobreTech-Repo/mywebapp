@@ -19,6 +19,8 @@
         <sonar.token>${SONARQUBE_TOKEN}</sonar.token>
         <sonar.host.url>http://51.20.114.60:9000/</sonar.host.url>
         <build.version>1.0</build.version> <!-- Default version if not overridden -->
+        <!-- Set active profile based on branch -->
+        <maven.branch>${env.BRANCH_NAME}</maven.branch> <!-- This retrieves the Git branch name -->
     </properties>
 
     <dependencies>
@@ -65,6 +67,13 @@
         <!-- Profile for main branch -->
         <profile>
             <id>main</id>
+            <activation>
+                <activeByDefault>false</activeByDefault> <!-- Do not activate by default -->
+                <property>
+                    <name>maven.branch</name>
+                    <value>main</value> <!-- Only activate this profile for main branch -->
+                </property>
+            </activation>
             <distributionManagement>
                 <repository>
                     <id>nexus</id>
@@ -73,9 +82,16 @@
             </distributionManagement>
         </profile>
 
-        <!-- Profile for Dev branch -->
+        <!-- Profile for dev branch -->
         <profile>
             <id>dev</id>
+            <activation>
+                <activeByDefault>false</activeByDefault> <!-- Do not activate by default -->
+                <property>
+                    <name>maven.branch</name>
+                    <value>Dev</value> <!-- Only activate this profile for Dev branch -->
+                </property>
+            </activation>
             <distributionManagement>
                 <snapshotRepository>
                     <id>nexus</id>
@@ -84,5 +100,4 @@
             </distributionManagement>
         </profile>
     </profiles>
-
 </project>
