@@ -61,15 +61,28 @@
         </plugins>
     </build>
 
-    <distributionManagement>
-        <repository>
-            <id>nexus</id>
-            <url>http://13.51.237.106:8081/repository/dobretech-repo/</url>
-        </repository>
-        <snapshotRepository>
-            <id>nexus</id>
-            <url>http://13.51.237.106:8081/repository/dobretech-repo-snap/</url>
-        </snapshotRepository>
-    </distributionManagement>
+    <profiles>
+        <!-- Profile for main branch -->
+        <profile>
+            <id>main</id>
+            <distributionManagement>
+                <repository>
+                    <id>nexus</id>
+                    <url>http://13.51.237.106:8081/repository/dobretech-repo/</url>
+                </repository>
+            </distributionManagement>
+        </profile>
+
+        <!-- Profile for Dev branch -->
+        <profile>
+            <id>dev</id>
+            <distributionManagement>
+                <snapshotRepository>
+                    <id>nexus</id>
+                    <url>http://13.51.237.106:8081/repository/dobretech-repo-snap/</url>
+                </snapshotRepository>
+            </distributionManagement>
+        </profile>
+    </profiles>
 
 </project>
