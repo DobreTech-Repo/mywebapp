@@ -6,7 +6,7 @@
 
     <groupId>com.example</groupId>
     <artifactId>myapp</artifactId>
-    <version>${build.version}</version> <!-- Use custom property for version -->
+    <version>1.0-SNAPSHOT</version> <!-- Snapshot version for dev branch -->
     <packaging>war</packaging>
 
     <name>DevOps Pipeline Demo DobreTech</name>
@@ -46,7 +46,7 @@
         </plugins>
     </build>
 
-
+    <profiles>
         <!-- Profile for dev branch -->
         <profile>
             <id>dev</id>
