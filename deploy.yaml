@@ -1,32 +1,27 @@
-- name: Deploy WAR to Apache Tomcat 
-  hosts: app
+---
+- name: Deploy WAR to Apache Tomcat
+  hosts: app_server
   become: yes
-
   vars:
-    tomcat_major: "9"
-    tomcat_version: "9.0.87"
-    tomcat_user: "tomcat"
-    tomcat_group: "tomcat"
-    tomcat_install_dir: "/opt/tomcat"
-    tomcat_url: "https://archive.apache.org/dist/tomcat/tomcat-{{ tomcat_major }}/v{{ tomcat_version }}/bin/apache-tomcat-{{ tomcat_version }}.tar.gz"
-    nexus_war_url: "http://18.234.234.170:8081/repository/dobretech-fe/com/example/myapp/1.0/myapp-1.0.war"
-    war_file_name: "myapp-1.0.war"
+    tomcat_version: 11.0.6
+    tomcat_user: tomcat
+    tomcat_group: tomcat
+    tomcat_install_dir: /opt/tomcat
+    tomcat_symlink: /opt/tomcat/latest
+    tomcat_download_url: "https://dlcdn.apache.org/tomcat/tomcat-11/v{{ tomcat_version }}/bin/apache-tomcat-{{ tomcat_version }}.tar.gz"
+    war_download_url: "http://13.60.239.5:8081/repository/dobretech-repo/com/example/myapp/1.0/myapp-1.0.war"
+    war_dest: "{{ tomcat_symlink }}/webapps/myapp.war"
 
   tasks:
-    - name: Ensure required apt packages are installed
+    - name: Install Java
       apt:
-        name:
-          - openjdk-11-jdk
-          - curl
-          - wget
-          - unzip
+        name: openjdk-17-jdk
         state: present
         update_cache: yes
 
     - name: Create Tomcat group
       group:
         name: "{{ tomcat_group }}"
-        state: present
 
     - name: Create Tomcat user
       user:
@@ -34,13 +29,6 @@
         group: "{{ tomcat_group }}"
         shell: /bin/false
         create_home: no
-        system: yes
-
-    - name: Download Tomcat
-      get_url:
-        url: "{{ tomcat_url }}"
-        dest: /tmp/tomcat.tar.gz
-        mode: '0644'
 
     - name: Create Tomcat installation directory
       file:
@@ -50,36 +38,81 @@
         group: root
         mode: '0755'
 
+    - name: Download Tomcat
+      get_url:
+        url: "{{ tomcat_download_url }}"
+        dest: "/tmp/apache-tomcat-{{ tomcat_version }}.tar.gz"
+        mode: '0644'
+
     - name: Extract Tomcat
       unarchive:
-        src: /tmp/tomcat.tar.gz
+        src: "/tmp/apache-tomcat-{{ tomcat_version }}.tar.gz"
         dest: "{{ tomcat_install_dir }}"
         remote_src: yes
         creates: "{{ tomcat_install_dir }}/apache-tomcat-{{ tomcat_version }}"
 
-    - name: Set correct permissions
+    - name: Set permissions
       file:
         path: "{{ tomcat_install_dir }}/apache-tomcat-{{ tomcat_version }}"
-        state: directory
-        recurse: yes
         owner: "{{ tomcat_user }}"
         group: "{{ tomcat_group }}"
+        recurse: yes
 
     - name: Create symlink to Tomcat
       file:
         src: "{{ tomcat_install_dir }}/apache-tomcat-{{ tomcat_version }}"
-        dest: "{{ tomcat_install_dir }}/latest"
+        dest: "{{ tomcat_symlink }}"
         state: link
-        force: yes
+        force: true
+
+    - name: Ensure webapps directory exists
+      file:
+        path: "{{ tomcat_symlink }}/webapps"
+        state: directory
+        owner: "{{ tomcat_user }}"
+        group: "{{ tomcat_group }}"
+        mode: '0755'
 
     - name: Download WAR file from Nexus
       get_url:
-        url: "{{ nexus_war_url }}"
-        dest: "{{ tomcat_install_dir }}/latest/webapps/{{ war_file_name }}"
+        url: "{{ war_download_url }}"
+        dest: "{{ war_dest }}"
         mode: '0644'
+        timeout: 30
+
+    - name: Download JMX Prometheus Java Agent
+      get_url:
+        url: "https://repo1.maven.org/maven2/io/prometheus/jmx/jmx_prometheus_javaagent/0.20.0/jmx_prometheus_javaagent-0.20.0.jar"
+        dest: "{{ tomcat_install_dir }}/jmx_prometheus_javaagent-0.20.0.jar"
+        mode: '0644'
+
+    - name: Create JMX Exporter config file
+      copy:
+        dest: "{{ tomcat_install_dir }}/jmx_exporter_config.yaml"
+        content: |
+          startDelaySeconds: 0
+          rules:
+            - pattern: 'java.lang:type=MemoryPool,name=(.*)'
+              name: jvm_memory_pool_usage_bytes
+              labels:
+                pool: "$1"
+              type: GAUGE
+            - pattern: 'java.lang:type=OperatingSystem'
+              name: jvm_system_cpu
+              type: GAUGE
+            - pattern: 'java.lang:type=Threading'
+              name: jvm_threads
+              type: GAUGE
+
+    - name: Set ownership of JMX files
+      file:
+        path: "{{ item }}"
         owner: "{{ tomcat_user }}"
         group: "{{ tomcat_group }}"
-      tags: deploy
+        mode: '0644'
+      loop:
+        - "{{ tomcat_install_dir }}/jmx_exporter_config.yaml"
+        - "{{ tomcat_install_dir }}/jmx_prometheus_javaagent-0.20.0.jar"
 
     - name: Create Tomcat systemd service
       copy:
@@ -92,31 +125,31 @@
           [Service]
           Type=forking
 
+          Environment=JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64
+          Environment=CATALINA_PID={{ tomcat_symlink }}/temp/tomcat.pid
+          Environment=CATALINA_HOME={{ tomcat_symlink }}
+          Environment=CATALINA_BASE={{ tomcat_symlink }}
+          Environment='CATALINA_OPTS=-Xms512M -Xmx1024M -server -XX:+UseParallelGC -javaagent:{{ tomcat_install_dir }}/jmx_prometheus_javaagent-0.20.0.jar=7070:{{ tomcat_install_dir }}/jmx_exporter_config.yaml'
+
+          ExecStart={{ tomcat_symlink }}/bin/startup.sh
+          ExecStop={{ tomcat_symlink }}/bin/shutdown.sh
+
           User={{ tomcat_user }}
           Group={{ tomcat_group }}
-
-          Environment="JAVA_HOME=/usr/lib/jvm/java-11-openjdk-amd64"
-          Environment="CATALINA_PID={{ tomcat_install_dir }}/latest/temp/tomcat.pid"
-          Environment="CATALINA_HOME={{ tomcat_install_dir }}/latest"
-          Environment="CATALINA_BASE={{ tomcat_install_dir }}/latest"
-          Environment="CATALINA_OPTS=-Xms512M -Xmx1024M -server -XX:+UseParallelGC"
-
-          ExecStart={{ tomcat_install_dir }}/latest/bin/startup.sh
-          ExecStop={{ tomcat_install_dir }}/latest/bin/shutdown.sh
-
+          UMask=0007
+          RestartSec=10
           Restart=always
 
           [Install]
           WantedBy=multi-user.target
-      notify:
-        - Reload systemd
+      notify: Reload systemd
 
-    - name: Ensure Tomcat is started and enabled
+    - name: Enable and start Tomcat service
       systemd:
         name: tomcat
         enabled: yes
         state: started
-      tags: deploy
+        daemon_reload: yes
 
   handlers:
     - name: Reload systemd
