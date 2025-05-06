@@ -6,7 +6,7 @@
 
     <groupId>com.example</groupId>
     <artifactId>myapp</artifactId>
-    <version>${build.version}</version> <!-- Use custom property for version -->
+    <version>1.0</version>
     <packaging>war</packaging>
 
     <name>DevOps Pipeline Demo DobreTech</name>
