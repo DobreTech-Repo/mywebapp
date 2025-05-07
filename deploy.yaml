@@ -1,55 +1,81 @@
 ---
-- name: Deploy SNAPSHOT WAR to Tomcat
+- name: Deploy SNAPSHOT WAR to Apache Tomcat
   hosts: app1
   become: yes
+
   vars:
     nexus_url: "http://13.51.237.106:8081"
     nexus_repo: "dobretech-repo-snap"
-    group_id: "com.example"
+    group_id: "com.example"  # Update as needed
     artifact_id: "myapp"
-    version: "1.0-SNAPSHOT"   # <-- SNAPSHOT
+    version: "1.0-SNAPSHOT"
     dest_dir: "/opt/tomcat/webapps"
     tomcat_service: "tomcat"
+    deploy_user: "tomcat"
+    deploy_group: "tomcat"
 
   tasks:
-    - name: Ensure Tomcat webapps directory exists
+    - name: Ensure deployment directory exists
       file:
         path: "{{ dest_dir }}"
         state: directory
-        owner: tomcat
-        group: tomcat
+        owner: "{{ deploy_user }}"
+        group: "{{ deploy_group }}"
         mode: '0755'
 
-    - name: Query Nexus maven-metadata.xml
+    - name: Construct group path from group_id
+      set_fact:
+        group_path: "{{ group_id | replace('.', '/') }}"
+
+    - name: Construct artifact base path and metadata URL
+      set_fact:
+        artifact_base_path: "{{ group_path }}/{{ artifact_id }}/{{ version }}"
+        metadata_url: "{{ nexus_url }}/repository/{{ nexus_repo }}/{{ artifact_base_path }}/maven-metadata.xml"
+
+    - name: Debug Metadata URL (optional)
+      debug:
+        msg: "{{ metadata_url }}"
+
+    - name: Download maven-metadata.xml from Nexus
       uri:
-        url: "{{ nexus_url }}/repository/{{ nexus_repo }}/{{ group_id | replace('.', '/') }}/{{ artifact_id }}/{{ version }}/maven-metadata.xml"
+        url: "{{ metadata_url }}"
         return_content: yes
       register: nexus_metadata
+      failed_when: "'<snapshotVersion>' not in nexus_metadata.content"
 
-    - name: Extract SNAPSHOT resolved version (timestamp & build)
+    - name: Extract SNAPSHOT resolved version using regex
       set_fact:
-        snapshot_resolved_version: "{{ nexus_metadata.content | regex_findall('>([0-9].*?\\.war)<') | first }}"
-        
-    - name: Debug Snapshot Version (Optional)
+        snapshot_resolved_version: "{{ nexus_metadata.content | regex_findall('<value>(.*?)</value>') | first }}"
+
+    - name: Debug resolved SNAPSHOT version (optional)
       debug:
-        msg: "{{ snapshot_resolved_version }}"
+        msg: "Resolved SNAPSHOT version: {{ snapshot_resolved_version }}"
 
-    - name: Set final WAR download URL
+    - name: Set resolved WAR URL and destination
       set_fact:
-        war_url: "{{ nexus_url }}/repository/{{ nexus_repo }}/{{ group_id | replace('.', '/') }}/{{ artifact_id }}/{{ version }}/{{ snapshot_resolved_version }}"
-        war_dest: "{{ dest_dir }}/{{ artifact_id }}.war"
+        war_filename: "{{ artifact_id }}-{{ snapshot_resolved_version }}.war"
+        resolved_war_url: "{{ nexus_url }}/repository/{{ nexus_repo }}/{{ artifact_base_path }}/{{ war_filename }}"
+        war_dest_path: "{{ dest_dir }}/{{ artifact_id }}.war"
 
-    - name: Download resolved WAR from Nexus
+    - name: Debug WAR URL (optional)
+      debug:
+        msg: "WAR URL: {{ resolved_war_url }}"
+
+    - name: Download WAR file from Nexus
       get_url:
-        url: "{{ war_url }}"
-        dest: "{{ war_dest }}"
-        owner: tomcat
-        group: tomcat
+        url: "{{ resolved_war_url }}"
+        dest: "{{ war_dest_path }}"
+        owner: "{{ deploy_user }}"
+        group: "{{ deploy_group }}"
         mode: '0644'
       register: war_download
+      retries: 3
+      delay: 5
+      until: war_download is succeeded
 
-    - name: Restart Tomcat
+    - name: Restart Tomcat service to deploy new WAR
       systemd:
         name: "{{ tomcat_service }}"
         state: restarted
+        enabled: true
       when: war_download.changed
