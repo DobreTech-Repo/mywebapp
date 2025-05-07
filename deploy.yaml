@@ -9,8 +9,9 @@
     tomcat_install_dir: /opt/tomcat
     tomcat_symlink: /opt/tomcat/latest
     tomcat_download_url: "https://dlcdn.apache.org/tomcat/tomcat-11/v{{ tomcat_version }}/bin/apache-tomcat-{{ tomcat_version }}.tar.gz"
-    nexus_base_url: "http://13.51.237.106:8081/repository/dobretech-repo-snap/com/example/myapp/1.0"
-    metadata_url: "{{ nexus_base_url }}/maven-metadata.xml"
+    war_base_url: "http://13.51.237.106:8081/repository/dobretech-repo-snap/com/example/myapp/1.0-SNAPSHOT"
+    war_metadata_url: "{{ war_base_url }}/maven-metadata.xml"
+    war_dest: "{{ tomcat_symlink }}/webapps/myapp.war"
 
   tasks:
     - name: Install Java
@@ -75,29 +76,21 @@
 
     - name: Query Nexus metadata to get resolved SNAPSHOT version
       uri:
-        url: "{{ metadata_url }}"
+        url: "{{ war_metadata_url }}"
         method: GET
         return_content: yes
-      register: metadata_response
+      register: nexus_metadata
+      retries: 3
+      delay: 5
+      until: nexus_metadata.status == 200
 
-    - name: Extract timestamp and build number from metadata
+    - name: Parse resolved SNAPSHOT WAR version
       set_fact:
-        snapshot_timestamp: "{{ metadata_response.content | regex_search('<timestamp>(.*?)</timestamp>', '\\1') }}"
-        snapshot_build_number: "{{ metadata_response.content | regex_search('<buildNumber>(.*?)</buildNumber>', '\\1') }}"
+        snapshot_version: "{{ nexus_metadata.content | from_xml | xpath('//versioning/snapshotVersions/snapshotVersion[1]/value/text()') | first }}"
 
-    - name: Set final WAR name and resolved download URL
-      set_fact:
-        snapshot_version: "myapp-1.0-{{ snapshot_timestamp }}-{{ snapshot_build_number }}.war"
-        resolved_war_url: "{{ nexus_base_url }}/{{ snapshot_version }}"
-        war_dest: "{{ tomcat_symlink }}/webapps/myapp.war"
-
-    - name: Show deployed WAR version
-      debug:
-        msg: "Deploying WAR version: {{ snapshot_version }}"
-
-    - name: Download resolved SNAPSHOT WAR file from Nexus
+    - name: Download WAR file from Nexus
       get_url:
-        url: "{{ resolved_war_url }}"
+        url: "{{ war_base_url }}/myapp-{{ snapshot_version }}.war"
         dest: "{{ war_dest }}"
         mode: '0644'
         timeout: 30
