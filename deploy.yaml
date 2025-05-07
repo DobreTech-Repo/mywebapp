@@ -1,77 +1,83 @@
 ---
 - name: Deploy WAR to Tomcat from Nexus
   hosts: app1
-  become: yes
-
+  become: true
   vars:
     nexus_url: "http://13.51.237.106:8081"
-    nexus_repo: "dobretech-repo-snap"
-    group_id: "com.example"
+    nexus_repo: "dobretech-repo-snap"   # or dobretech-repo-release for releases
+    group_id: "com.example.myapp"
     artifact_id: "myapp"
-    version: "1.0-SNAPSHOT"
-    tomcat_user: "tomcat"
-    tomcat_group: "tomcat"
-    tomcat_webapps: "/opt/tomcat/latest/webapps"
-    nexus_metadata_url: "{{ nexus_url }}/repository/{{ nexus_repo }}/{{ group_id | replace('.', '/') }}/{{ artifact_id }}/{{ version }}/maven-metadata.xml"
+    version: "1.0-SNAPSHOT"  # use e.g. 1.0 for release
+    tomcat_symlink: "/opt/tomcat/latest"
+    webapps_dir: "/opt/tomcat/latest/webapps"
 
   tasks:
-
-    - name: Ensure Tomcat directory structure exists
-      file:
-        path: "{{ item }}"
-        state: directory
-        owner: "{{ tomcat_user }}"
-        group: "{{ tomcat_group }}"
-        mode: '0755'
-      loop:
-        - "/opt/tomcat"
-        - "/opt/tomcat/latest"
-        - "{{ tomcat_webapps }}"
-
     - name: Create symlink to Tomcat
       file:
-        src: "/opt/tomcat/apache-tomcat-9.0.89"
-        dest: "/opt/tomcat/latest"
+        src: "/opt/tomcat/apache-tomcat-9.0.85"
+        dest: "{{ tomcat_symlink }}"
         state: link
-        force: yes
+        follow: false
 
     - name: Ensure webapps directory exists
       file:
-        path: "{{ tomcat_webapps }}"
+        path: "{{ webapps_dir }}"
         state: directory
-        owner: "{{ tomcat_user }}"
-        group: "{{ tomcat_group }}"
-        mode: '0755'
+        owner: tomcat
+        group: tomcat
+        mode: "0755"
+
+    - name: Convert group ID to path
+      set_fact:
+        group_path: "{{ group_id | replace('.', '/') }}"
+
+    - name: Set base artifact path
+      set_fact:
+        artifact_base_path: "{{ group_path }}/{{ artifact_id }}/{{ version }}"
+
+    - name: Set metadata URL if SNAPSHOT
+      set_fact:
+        metadata_url: "{{ nexus_url }}/repository/{{ nexus_repo }}/{{ artifact_base_path }}/maven-metadata.xml"
+      when: version.endswith('-SNAPSHOT')
 
     - name: Query Nexus metadata to get resolved SNAPSHOT version
       uri:
-        url: "{{ nexus_metadata_url }}"
+        url: "{{ metadata_url }}"
         return_content: yes
       register: nexus_metadata
+      when: version.endswith('-SNAPSHOT')
 
     - name: Parse resolved SNAPSHOT WAR version using regex
       set_fact:
-        snapshot_version: "{{ (nexus_metadata.content | regex_search('<value>([^<]+)</value>', '\\1'))[0] }}"
+        resolved_version: "{{ (nexus_metadata.content | regex_search('<value>(.*?)</value>', '\\1')) }}"
+      when: version.endswith('-SNAPSHOT')
 
-    - name: Set resolved WAR URL and destination
+    - name: Set WAR filename and URL for SNAPSHOT
       set_fact:
-        resolved_war_url: "{{ nexus_url }}/repository/{{ nexus_repo }}/{{ group_id | replace('.', '/') }}/{{ artifact_id }}/{{ version }}/{{ artifact_id }}-{{ snapshot_version }}.war"
-        war_dest_path: "{{ tomcat_webapps }}/{{ artifact_id }}.war"
+        war_filename: "{{ artifact_id }}-{{ resolved_version }}.war"
+        war_url: "{{ nexus_url }}/repository/{{ nexus_repo }}/{{ artifact_base_path }}/{{ war_filename }}"
+      when: version.endswith('-SNAPSHOT')
+
+    - name: Set WAR filename and URL for release
+      set_fact:
+        war_filename: "{{ artifact_id }}-{{ version }}.war"
+        war_url: "{{ nexus_url }}/repository/{{ nexus_repo }}/{{ artifact_base_path }}/{{ war_filename }}"
+      when: not version.endswith('-SNAPSHOT')
+
+    - name: Set WAR destination path
+      set_fact:
+        war_dest_path: "{{ webapps_dir }}/{{ artifact_id }}.war"
 
     - name: Download WAR file from Nexus
       get_url:
-        url: "{{ resolved_war_url }}"
+        url: "{{ war_url }}"
         dest: "{{ war_dest_path }}"
-        owner: "{{ tomcat_user }}"
-        group: "{{ tomcat_group }}"
-        mode: '0644'
-      retries: 3
-      delay: 5
-      register: war_download
-      until: war_download is succeeded
+        owner: tomcat
+        group: tomcat
+        mode: "0644"
 
-    - name: Restart Tomcat service
+    - name: Restart Tomcat
       systemd:
         name: tomcat
         state: restarted
-        enabled: yes
+        enabled: true
