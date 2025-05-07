@@ -1,6 +1,6 @@
 ---
 - name: Deploy SNAPSHOT WAR to Tomcat
-  hosts: app1
+  hosts: app_server
   become: yes
 
   vars:
