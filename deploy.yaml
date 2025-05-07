@@ -29,13 +29,11 @@
         shell: /bin/false
         create_home: no
 
-    - name: Ensure Tomcat install directory exists
+    - name: Create or verify symlink to Tomcat
       file:
-        path: "{{ tomcat_install_dir }}"
-        state: directory
-        owner: root
-        group: root
-        mode: '0755'
+        src: "/opt/tomcat/apache-tomcat-9.0.85"
+        dest: "/opt/tomcat/latest"
+        state: link
 
     - name: Ensure webapps directory exists
       file:
