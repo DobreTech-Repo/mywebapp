@@ -8,10 +8,11 @@
     tomcat_group: tomcat
     tomcat_install_dir: /opt/tomcat
     tomcat_symlink: /opt/tomcat/latest
-    tomcat_download_url: "https://dlcdn.apache.org/tomcat/tomcat-11/v{{ tomcat_version }}/bin/apache-tomcat-{{ tomcat_version }}.tar.gz"
-    war_base_url: "http://13.51.237.106:8081/repository/dobretech-repo-snap/com/example/myapp/1.0-SNAPSHOT"
-    war_metadata_url: "{{ war_base_url }}/maven-metadata.xml"
-    war_dest: "{{ tomcat_symlink }}/webapps/myapp.war"
+    nexus_repo_url: http://13.51.237.106:8081/repository/dobretech-repo-snap
+    group_id_path: com/example/myapp
+    artifact_id: myapp
+    version: 1.0-SNAPSHOT
+    war_metadata_url: "{{ nexus_repo_url }}/{{ group_id_path }}/{{ version }}/maven-metadata.xml"
 
   tasks:
     - name: Install Java
@@ -41,7 +42,7 @@
 
     - name: Download Tomcat
       get_url:
-        url: "{{ tomcat_download_url }}"
+        url: "https://dlcdn.apache.org/tomcat/tomcat-11/v{{ tomcat_version }}/bin/apache-tomcat-{{ tomcat_version }}.tar.gz"
         dest: "/tmp/apache-tomcat-{{ tomcat_version }}.tar.gz"
         mode: '0644'
 
@@ -84,13 +85,18 @@
       delay: 5
       until: nexus_metadata.status == 200
 
-    - name: Parse resolved SNAPSHOT WAR version
+    - name: Parse resolved SNAPSHOT WAR version using regex
       set_fact:
-        snapshot_version: "{{ nexus_metadata.content | from_xml | xpath('//versioning/snapshotVersions/snapshotVersion[1]/value/text()') | first }}"
+        snapshot_version: "{{ nexus_metadata.content | regex_search('<value>([^<]+)</value>', '\\1') }}"
+
+    - name: Set resolved WAR URL and destination
+      set_fact:
+        war_download_url: "{{ nexus_repo_url }}/{{ group_id_path }}/{{ version }}/{{ artifact_id }}-{{ snapshot_version }}.war"
+        war_dest: "{{ tomcat_symlink }}/webapps/{{ artifact_id }}.war"
 
     - name: Download WAR file from Nexus
       get_url:
-        url: "{{ war_base_url }}/myapp-{{ snapshot_version }}.war"
+        url: "{{ war_download_url }}"
         dest: "{{ war_dest }}"
         mode: '0644'
         timeout: 30
