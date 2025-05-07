@@ -9,8 +9,7 @@
     tomcat_install_dir: /opt/tomcat
     tomcat_symlink: /opt/tomcat/latest
     tomcat_download_url: "https://dlcdn.apache.org/tomcat/tomcat-11/v{{ tomcat_version }}/bin/apache-tomcat-{{ tomcat_version }}.tar.gz"
-    war_download_url: "http://13.51.237.106:8081/repository/dobretech-repo-snap/com/example/myapp/1.0/myapp-1.0-SNAPSHOT.war"
-    war_dest: "{{ tomcat_symlink }}/webapps/myapp.war"
+    nexus_base_url: "http://13.51.237.106:8081/repository/dobretech-repo-snap/com/example/myapp/1.0-SNAPSHOT"
 
   tasks:
     - name: Install Java
@@ -73,9 +72,25 @@
         group: "{{ tomcat_group }}"
         mode: '0755'
 
-    - name: Download WAR file from Nexus
+    - name: Query Nexus metadata to get resolved SNAPSHOT version
+      uri:
+        url: "{{ nexus_base_url }}/maven-metadata.xml"
+        return_content: yes
+      register: metadata_response
+
+    - name: Parse resolved SNAPSHOT WAR version
+      set_fact:
+        snapshot_version: "{{ metadata_response.content | regex_search('<value>(myapp-1.0-.*?\\.war)</value>', '\\1') }}"
+        resolved_war_url: "{{ nexus_base_url }}/{{ snapshot_version }}"
+        war_dest: "{{ tomcat_symlink }}/webapps/myapp.war"
+
+    - name: Show deployed WAR version
+      debug:
+        msg: "Deploying WAR version: {{ snapshot_version }}"
+
+    - name: Download resolved SNAPSHOT WAR file from Nexus
       get_url:
-        url: "{{ war_download_url }}"
+        url: "{{ resolved_war_url }}"
         dest: "{{ war_dest }}"
         mode: '0644'
         timeout: 30
