@@ -1,75 +1,43 @@
 ---
-- name: Deploy WAR to Apache Tomcat
-  hosts: app_server
+- name: Deploy WAR to Tomcat from Nexus
+  hosts: app1
   become: yes
+
   vars:
-    tomcat_version: 11.0.6
-    tomcat_user: tomcat
-    tomcat_group: tomcat
-    tomcat_install_dir: /opt/tomcat
-    tomcat_symlink: /opt/tomcat/latest
-    nexus_repo_url: http://13.51.237.106:8081/repository/dobretech-repo-snap
-    group_id_path: com/example/myapp
-    artifact_id: myapp
-    version: 1.0-SNAPSHOT
-    war_metadata_url: "{{ nexus_repo_url }}/{{ group_id_path }}/{{ version }}/maven-metadata.xml"
+    nexus_url: "http://13.51.237.106:8081"
+    nexus_repo: "dobretech-repo-snap"
+    group_id: "com.example"
+    artifact_id: "myapp"
+    version: "1.0-SNAPSHOT"
+    tomcat_user: "tomcat"
+    tomcat_group: "tomcat"
+    tomcat_webapps: "/opt/tomcat/latest/webapps"
+    nexus_metadata_url: "{{ nexus_url }}/repository/{{ nexus_repo }}/{{ group_id | replace('.', '/') }}/{{ artifact_id }}/{{ version }}/maven-metadata.xml"
 
   tasks:
-    - name: Install Java
-      apt:
-        name: openjdk-17-jdk
-        state: present
-        update_cache: yes
 
-    - name: Create Tomcat group
-      group:
-        name: "{{ tomcat_group }}"
-
-    - name: Create Tomcat user
-      user:
-        name: "{{ tomcat_user }}"
-        group: "{{ tomcat_group }}"
-        shell: /bin/false
-        create_home: no
-
-    - name: Create Tomcat installation directory
+    - name: Ensure Tomcat directory structure exists
       file:
-        path: "{{ tomcat_install_dir }}"
+        path: "{{ item }}"
         state: directory
-        owner: root
-        group: root
-        mode: '0755'
-
-    - name: Download Tomcat
-      get_url:
-        url: "https://dlcdn.apache.org/tomcat/tomcat-11/v{{ tomcat_version }}/bin/apache-tomcat-{{ tomcat_version }}.tar.gz"
-        dest: "/tmp/apache-tomcat-{{ tomcat_version }}.tar.gz"
-        mode: '0644'
-
-    - name: Extract Tomcat
-      unarchive:
-        src: "/tmp/apache-tomcat-{{ tomcat_version }}.tar.gz"
-        dest: "{{ tomcat_install_dir }}"
-        remote_src: yes
-        creates: "{{ tomcat_install_dir }}/apache-tomcat-{{ tomcat_version }}"
-
-    - name: Set permissions
-      file:
-        path: "{{ tomcat_install_dir }}/apache-tomcat-{{ tomcat_version }}"
         owner: "{{ tomcat_user }}"
         group: "{{ tomcat_group }}"
-        recurse: yes
+        mode: '0755'
+      loop:
+        - "/opt/tomcat"
+        - "/opt/tomcat/latest"
+        - "{{ tomcat_webapps }}"
 
     - name: Create symlink to Tomcat
       file:
-        src: "{{ tomcat_install_dir }}/apache-tomcat-{{ tomcat_version }}"
-        dest: "{{ tomcat_symlink }}"
+        src: "/opt/tomcat/apache-tomcat-9.0.89"
+        dest: "/opt/tomcat/latest"
         state: link
-        force: true
+        force: yes
 
     - name: Ensure webapps directory exists
       file:
-        path: "{{ tomcat_symlink }}/webapps"
+        path: "{{ tomcat_webapps }}"
         state: directory
         owner: "{{ tomcat_user }}"
         group: "{{ tomcat_group }}"
@@ -77,101 +45,33 @@
 
     - name: Query Nexus metadata to get resolved SNAPSHOT version
       uri:
-        url: "{{ war_metadata_url }}"
-        method: GET
+        url: "{{ nexus_metadata_url }}"
         return_content: yes
       register: nexus_metadata
-      retries: 3
-      delay: 5
-      until: nexus_metadata.status == 200
 
     - name: Parse resolved SNAPSHOT WAR version using regex
       set_fact:
-        snapshot_version: "{{ nexus_metadata.content | regex_search('<value>([^<]+)</value>', '\\1') }}"
+        snapshot_version: "{{ (nexus_metadata.content | regex_search('<value>([^<]+)</value>', '\\1'))[0] }}"
 
     - name: Set resolved WAR URL and destination
       set_fact:
-        war_download_url: "{{ nexus_repo_url }}/{{ group_id_path }}/{{ version }}/{{ artifact_id }}-{{ snapshot_version }}.war"
-        war_dest: "{{ tomcat_symlink }}/webapps/{{ artifact_id }}.war"
+        resolved_war_url: "{{ nexus_url }}/repository/{{ nexus_repo }}/{{ group_id | replace('.', '/') }}/{{ artifact_id }}/{{ version }}/{{ artifact_id }}-{{ snapshot_version }}.war"
+        war_dest_path: "{{ tomcat_webapps }}/{{ artifact_id }}.war"
 
     - name: Download WAR file from Nexus
       get_url:
-        url: "{{ war_download_url }}"
-        dest: "{{ war_dest }}"
-        mode: '0644'
-        timeout: 30
-
-    - name: Download JMX Prometheus Java Agent
-      get_url:
-        url: "https://repo1.maven.org/maven2/io/prometheus/jmx/jmx_prometheus_javaagent/0.20.0/jmx_prometheus_javaagent-0.20.0.jar"
-        dest: "{{ tomcat_install_dir }}/jmx_prometheus_javaagent-0.20.0.jar"
-        mode: '0644'
-
-    - name: Create JMX Exporter config file
-      copy:
-        dest: "{{ tomcat_install_dir }}/jmx_exporter_config.yaml"
-        content: |
-          startDelaySeconds: 0
-          rules:
-            - pattern: 'java.lang:type=MemoryPool,name=(.*)'
-              name: jvm_memory_pool_usage_bytes
-              labels:
-                pool: "$1"
-              type: GAUGE
-            - pattern: 'java.lang:type=OperatingSystem'
-              name: jvm_system_cpu
-              type: GAUGE
-            - pattern: 'java.lang:type=Threading'
-              name: jvm_threads
-              type: GAUGE
-
-    - name: Set ownership of JMX files
-      file:
-        path: "{{ item }}"
+        url: "{{ resolved_war_url }}"
+        dest: "{{ war_dest_path }}"
         owner: "{{ tomcat_user }}"
         group: "{{ tomcat_group }}"
         mode: '0644'
-      loop:
-        - "{{ tomcat_install_dir }}/jmx_exporter_config.yaml"
-        - "{{ tomcat_install_dir }}/jmx_prometheus_javaagent-0.20.0.jar"
+      retries: 3
+      delay: 5
+      register: war_download
+      until: war_download is succeeded
 
-    - name: Create Tomcat systemd service
-      copy:
-        dest: /etc/systemd/system/tomcat.service
-        content: |
-          [Unit]
-          Description=Apache Tomcat Web Application Container
-          After=network.target
-
-          [Service]
-          Type=forking
-
-          Environment=JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64
-          Environment=CATALINA_PID={{ tomcat_symlink }}/temp/tomcat.pid
-          Environment=CATALINA_HOME={{ tomcat_symlink }}
-          Environment=CATALINA_BASE={{ tomcat_symlink }}
-          Environment='CATALINA_OPTS=-Xms512M -Xmx1024M -server -XX:+UseParallelGC -javaagent:{{ tomcat_install_dir }}/jmx_prometheus_javaagent-0.20.0.jar=7070:{{ tomcat_install_dir }}/jmx_exporter_config.yaml'
-
-          ExecStart={{ tomcat_symlink }}/bin/startup.sh
-          ExecStop={{ tomcat_symlink }}/bin/shutdown.sh
-
-          User={{ tomcat_user }}
-          Group={{ tomcat_group }}
-          UMask=0007
-          RestartSec=10
-          Restart=always
-
-          [Install]
-          WantedBy=multi-user.target
-      notify: Reload systemd
-
-    - name: Enable and start Tomcat service
+    - name: Restart Tomcat service
       systemd:
         name: tomcat
+        state: restarted
         enabled: yes
-        state: started
-        daemon_reload: yes
-
-  handlers:
-    - name: Reload systemd
-      command: systemctl daemon-reexec
