@@ -9,7 +9,8 @@
     tomcat_install_dir: /opt/tomcat
     tomcat_symlink: /opt/tomcat/latest
     tomcat_download_url: "https://dlcdn.apache.org/tomcat/tomcat-11/v{{ tomcat_version }}/bin/apache-tomcat-{{ tomcat_version }}.tar.gz"
-    nexus_base_url: "http://13.51.237.106:8081/repository/dobretech-repo-snap/com/example/myapp/1.0-SNAPSHOT"
+    nexus_base_url: "http://13.51.237.106:8081/repository/dobretech-repo-snap/com/example/myapp/1.0"
+    metadata_url: "{{ nexus_base_url }}/maven-metadata.xml"
 
   tasks:
     - name: Install Java
@@ -74,13 +75,19 @@
 
     - name: Query Nexus metadata to get resolved SNAPSHOT version
       uri:
-        url: "{{ nexus_base_url }}/maven-metadata.xml"
+        url: "{{ metadata_url }}"
+        method: GET
         return_content: yes
       register: metadata_response
 
-    - name: Parse resolved SNAPSHOT WAR version
+    - name: Extract timestamp and build number from metadata
       set_fact:
-        snapshot_version: "{{ metadata_response.content | regex_search('<value>(myapp-1.0-.*?\\.war)</value>', '\\1') }}"
+        snapshot_timestamp: "{{ metadata_response.content | regex_search('<timestamp>(.*?)</timestamp>', '\\1') }}"
+        snapshot_build_number: "{{ metadata_response.content | regex_search('<buildNumber>(.*?)</buildNumber>', '\\1') }}"
+
+    - name: Set final WAR name and resolved download URL
+      set_fact:
+        snapshot_version: "myapp-1.0-{{ snapshot_timestamp }}-{{ snapshot_build_number }}.war"
         resolved_war_url: "{{ nexus_base_url }}/{{ snapshot_version }}"
         war_dest: "{{ tomcat_symlink }}/webapps/myapp.war"
 
